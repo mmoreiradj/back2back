@@ -1,0 +1,57 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: back2back
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: back2back-controller
+  namespace: back2back
+  labels:
+    app: back2back-controller
+    app.kubernetes.io/name: back2back-controller
+    app.kubernetes.io/instance: back2back-controller
+spec:
+  selector:
+    matchLabels:
+      app: back2back-controller
+  template:
+    metadata:
+      labels:
+        app: back2back-controller
+    spec:
+      containers:
+      - name: back2back-controller
+        image: mmoreiradj/back2back-controller
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: 500m
+          requests:
+            memory: 64Mi
+            cpu: 250m
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back2back-controller
+  namespace: back2back
+  labels:
+    app: back2back-controller
+    app.kubernetes.io/name: back2back-controller
+    app.kubernetes.io/instance: back2back-controller
+spec:
+  type: ClusterIP
+  selector:
+    app: back2back-controller
+  ports:
+  - port: 80
+    name: http
+    protocol: TCP
+    targetPort: 8080
