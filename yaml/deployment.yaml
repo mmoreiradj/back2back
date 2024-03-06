@@ -25,6 +25,11 @@ spec:
       containers:
       - name: back2back-controller
         image: mmoreiradj/back2back-controller
+        env:
+        - name: SERVER_PORT
+          value: '8080'
+        - name: SERVER_HOST
+          value: 0.0.0.0
         resources:
           limits:
             memory: 128Mi
