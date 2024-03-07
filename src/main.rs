@@ -1,6 +1,7 @@
 use actix_web::{App, HttpServer};
 use tracing::{error, info};
 use tracing_actix_web::TracingLogger;
+mod controller;
 mod health;
 
 #[derive(Debug)]
@@ -25,6 +26,8 @@ async fn main() -> Result<(), ServerError> {
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION")
     );
+
+    let controller = controller::run();
 
     let host = std::env::var("SERVER_HOST").map_err(|e| {
         error!("Failed to read SERVER_HOST: {}", e);
@@ -51,10 +54,7 @@ async fn main() -> Result<(), ServerError> {
 
     info!("Server listening on {}", addr);
 
-    server.run().await.map_err(|e| {
-        error!("Server failed to start: {}", e);
-        ServerError::ServerStartFailed(e)
-    })?;
+    tokio::join!(controller, server.run()).1.unwrap();
 
     Ok(())
 }
