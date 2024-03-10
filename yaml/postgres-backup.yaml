@@ -1,0 +1,18 @@
+apiVersion: b2b.moreiradj.fr/v1
+kind: B2BBackup
+metadata:
+  name: postgres-backup
+spec:
+  postgres:
+    auth:
+      password: postgres
+    host: back2back-postgres-test
+    port: 5432
+  s3:
+    bucket: pgbackup
+    endpoint: http://minio::9000
+    # region: ""
+    auth:
+      access: minio-access
+      secret: minio-secret
+  schedule: 0 0 * * *

@@ -1,0 +1,62 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: back2back-postgres-test
+spec:
+  selector:
+    matchLabels:
+      app: back2back-postgres-test
+  serviceName: back2back-postgres-test
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: back2back-postgres-test
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: back2back-postgres-test
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 128m
+            memory: 256Mi
+          limits:
+            cpu: 256m
+            memory: 512Mi
+        env:
+        - name: POSTGRES_DB
+          value: test
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        - name: PGDATA
+          value: /data/pgdata
+        volumeMounts:
+        - name: localvolume
+          mountPath: /data/pgdata
+  volumeClaimTemplates:
+  - metadata:
+      name: localvolume
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back2back-postgres-test
+spec:
+  selector:
+    app: back2back-postgres-test
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+---

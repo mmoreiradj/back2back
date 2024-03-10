@@ -12,4 +12,6 @@ local_resource('compile', 'just compile', deps=['./src', 'Cargo.toml', 'Cargo.lo
 docker_build('mmoreiradj/back2back-controller', '.', dockerfile='Dockerfile')
 k8s_yaml('yaml/crd.yaml')
 k8s_yaml('yaml/deployment.yaml')
+k8s_yaml('yaml/minio-deployment.yaml')
 k8s_resource('back2back-controller', port_forwards="8080")
+k8s_resource('back2back-minio-test', port_forwards=["9000", "9001"])

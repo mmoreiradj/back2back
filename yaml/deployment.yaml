@@ -15,6 +15,9 @@ rules:
 - apiGroups: [b2b.moreiradj.fr]
   resources: [b2bbackups, b2bbackups/status, b2bbackups/finalizers]
   verbs: [get, list, watch, patch, update]
+- apiGroups: [batch]
+  resources: [jobs, cronjobs]
+  verbs: [create, delete, get, list, watch]
 - apiGroups: [events.k8s.io]
   resources: [events]
   verbs: [create]
@@ -48,7 +51,6 @@ spec:
       labels:
         app: back2back-controller
     spec:
-      automountServiceAccountToken: false
       serviceAccountName: back2back-controller
       containers:
       - name: back2back-controller

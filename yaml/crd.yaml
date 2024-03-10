@@ -16,35 +16,59 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: Auto-generated derived type for B2BPostgresBackupSpec via `CustomResource`
+        description: Auto-generated derived type for B2BBackupSpec via `CustomResource`
         properties:
           spec:
             properties:
-              auth:
+              postgres:
                 properties:
-                  database:
+                  auth:
+                    properties:
+                      password:
+                        type: string
+                    required:
+                    - password
+                    type: object
+                  host:
                     type: string
-                  password:
+                  port:
+                    format: uint16
+                    minimum: 0.0
+                    type: integer
+                required:
+                - auth
+                - host
+                - port
+                type: object
+              s3:
+                properties:
+                  auth:
+                    properties:
+                      access:
+                        type: string
+                      secret:
+                        type: string
+                    required:
+                    - access
+                    - secret
+                    type: object
+                  bucket:
                     type: string
-                  username:
+                  endpoint:
+                    nullable: true
+                    type: string
+                  region:
+                    nullable: true
                     type: string
                 required:
-                - database
-                - password
-                - username
+                - auth
+                - bucket
                 type: object
-              host:
-                type: string
-              port:
-                format: uint16
-                minimum: 0.0
-                type: integer
               schedule:
                 type: string
             required:
-            - auth
-            - host
-            - port
+            - postgres
+            - s3
             - schedule
             type: object
         required:

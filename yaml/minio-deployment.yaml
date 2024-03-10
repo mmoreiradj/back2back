@@ -1,0 +1,71 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: back2back-minio-test
+spec:
+  selector:
+    matchLabels:
+      app: back2back-minio-test
+  serviceName: back2back-minio-test
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: back2back-minio-test
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: back2back-minio-test
+        image: quay.io/minio/minio:latest
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - minio server /data --console-address :9001
+        ports:
+        - containerPort: 9000
+          name: service
+        - containerPort: 9001
+          name: console
+        resources:
+          requests:
+            cpu: 128m
+            memory: 256Mi
+          limits:
+            cpu: 256m
+            memory: 512Mi
+        env:
+        - name: MINIO_ROOT_USER
+          value: minio-access
+        - name: MINIO_ROOT_PASSWORD
+          value: minio-secret
+        volumeMounts:
+        - name: localvolume
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: localvolume
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back2back-minio-test
+spec:
+  selector:
+    app: back2back-minio-test
+  ports:
+  - name: service
+    port: 9000
+    targetPort: service
+    protocol: TCP
+  - name: console
+    port: 9001
+    targetPort: console
+    protocol: TCP
+---
