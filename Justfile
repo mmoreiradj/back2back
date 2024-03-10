@@ -21,8 +21,8 @@ compile:
     cargo build --release --bin controller
   cp target/x86_64-unknown-linux-musl/release/controller .
 
-docker-build image:
-  docker build -t image .
+docker-build IMAGE = "ghcr.io/mmoreiradj/back2back:latest": compile
+  docker build -t {{IMAGE}} .
 
 k3d-start:
   k3d registry create registry.localhost --port 5000
@@ -30,3 +30,6 @@ k3d-start:
     -p "80:80@loadbalancer" \
     -p "443:443@loadbalancer" \
     --registry-use registry.localhost
+
+docker-build-backup IMAGE = "ghcr.io/mmoreiradj/back2back-postgres-backup:latest":
+  docker build -t {{IMAGE}} -f pgbackup.Dockerfile .
