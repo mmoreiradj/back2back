@@ -1,15 +1,16 @@
 use std::{sync::Arc, time::Duration};
 
-use back2back_lib::crd::B2BBackup;
+use back2back_lib::crd::{B2BBackup, B2BBackupStatus};
 use futures::StreamExt;
-use k8s_openapi::api::batch::v1::CronJob;
+use k8s_openapi::api::{batch::v1::CronJob, core::v1::Pod};
 use kube::{
-    api::ListParams,
+    api::{Patch, PatchParams},
     runtime::{controller::Action, Controller},
     Api, Client, ResourceExt,
 };
+use serde_json::json;
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 /// Context of the controller
 #[derive(Clone)]
@@ -32,24 +33,95 @@ async fn reconcile(b2b_backup: Arc<B2BBackup>, ctx: Arc<Context>) -> Result<Acti
     let client = ctx.client.clone();
     let b2b_backup: Arc<B2BBackup> = b2b_backup.clone();
     let b2b_backup_namespace = b2b_backup.namespace().unwrap_or("default".to_string());
+    let b2b_backups = Api::<B2BBackup>::namespaced(client.clone(), &b2b_backup_namespace);
 
-    let cronjobs = Api::<CronJob>::namespaced(client, &b2b_backup_namespace);
+    let cronjobs = Api::<CronJob>::namespaced(client.clone(), &b2b_backup_namespace);
 
-    let lp = ListParams::default().labels(&format!(
-        "b2b.moreiradj.fr/backup-name={}",
-        &b2b_backup.name_any()
-    ));
-    let related_cronjobs = cronjobs.list_metadata(&lp).await?;
+    let cronjob = match cronjobs.get(&b2b_backup.name_any()).await {
+        Ok(cronjob) => cronjob,
+        Err(_) => {
+            debug!(
+                "Cronjob not found for {:?}, creating it",
+                b2b_backup.name_any()
+            );
 
-    if related_cronjobs.items.is_empty() {
-        info!(
-            "Cronjob not found for {:?}, creating it",
+            let cronjob = b2b_backup.create_cronjob();
+
+            cronjobs.create(&Default::default(), &cronjob).await?;
+            return Ok(Action::requeue(Duration::from_secs(60)));
+        }
+    };
+
+    let cronjob_status = match cronjob.status {
+        Some(status) => status,
+        None => {
+            debug!("Cronjob status not found for {:?}", b2b_backup.name_any());
+            return Ok(Action::requeue(Duration::from_secs(60)));
+        }
+    };
+
+    let cronjob_last_successful_time = match cronjob_status.last_successful_time {
+        Some(last_schedule) => last_schedule,
+        None => {
+            debug!(
+                "Cronjob last schedule not found for {:?}",
+                b2b_backup.name_any()
+            );
+            return Ok(Action::requeue(Duration::from_secs(60)));
+        }
+    };
+
+    let status = match &b2b_backup.status {
+        Some(status) => status,
+        None => {
+            let new_status = Patch::Apply(json!({
+                "apiVersion": "b2b.moreiradj.fr/v1",
+                "kind": "B2BBackup",
+                "status": B2BBackupStatus {
+                    cronjob_last_successful_time: Some(cronjob_last_successful_time),
+                    test_pod_last_schedule_time: None,
+                    test_pod_last_successful_time: None,
+                }
+
+            }));
+
+            let ps = PatchParams::apply(&b2b_backup_namespace).force();
+            let _ = b2b_backups
+                .patch_status(&b2b_backup.name_any(), &ps, &new_status)
+                .await?;
+
+            return Ok(Action::requeue(Duration::from_secs(60)));
+        }
+    };
+
+    // Schedule a pod to test the backup
+    if status.cronjob_last_successful_time != status.test_pod_last_schedule_time {
+        debug!(
+            "Scheduling a pod to test the backup for {:?}",
             b2b_backup.name_any()
         );
 
-        let cronjob = b2b_backup.create_cronjob();
+        let pods = Api::<Pod>::namespaced(client.clone(), &b2b_backup_namespace);
+        let pod = b2b_backup.create_test_postgres_pod();
 
-        cronjobs.create(&Default::default(), &cronjob).await?;
+        pods.create(&Default::default(), &pod).await?;
+
+        let cronjob_last_successful_time = cronjob_last_successful_time.clone();
+
+        let new_status = Patch::Apply(json!({
+            "apiVersion": "b2b.moreiradj.fr/v1",
+            "kind": "B2BBackup",
+            "status": B2BBackupStatus {
+                cronjob_last_successful_time: Some(cronjob_last_successful_time.clone()),
+                test_pod_last_schedule_time: Some(cronjob_last_successful_time),
+                test_pod_last_successful_time: None,
+            }
+        }));
+
+        let ps = PatchParams::apply(&b2b_backup_namespace).force();
+        let _ = b2b_backups
+            .patch_status(&b2b_backup.name_any(), &ps, &new_status)
+            .await?;
     }
 
     Ok(Action::requeue(Duration::from_secs(60)))

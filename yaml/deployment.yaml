@@ -21,6 +21,9 @@ rules:
 - apiGroups: [events.k8s.io]
   resources: [events]
   verbs: [create]
+- apiGroups: ['']
+  resources: [pods]
+  verbs: [get, list, watch, create, update, patch, delete, deletecollection]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -28,6 +31,7 @@ metadata:
   name: back2back-controller
 subjects:
 - kind: ServiceAccount
+  namespace: default
   name: back2back-controller
 roleRef:
   kind: ClusterRole

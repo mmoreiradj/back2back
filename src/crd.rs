@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 
 use k8s_openapi::{
     api::{
-        batch::v1::{CronJob, CronJobSpec, JobSpec, JobTemplateSpec},
+        batch::v1::{CronJob, CronJobSpec, Job, JobSpec, JobTemplateSpec},
         core::v1::{
-            Capabilities, Container, EnvVar, PodSpec, PodTemplateSpec, SeccompProfile,
+            Capabilities, Container, EnvVar, Pod, PodSpec, PodTemplateSpec, SeccompProfile,
             SecurityContext,
         },
     },
-    apimachinery::pkg::apis::meta::v1::OwnerReference,
+    apimachinery::pkg::apis::meta::v1::{OwnerReference, Time},
 };
 use kube::{api::ObjectMeta, CustomResource, ResourceExt};
 use rand::distributions::Alphanumeric;
@@ -47,7 +47,8 @@ pub struct S3Config {
     group = "b2b.moreiradj.fr",
     version = "v1",
     kind = "B2BBackup",
-    namespaced
+    namespaced,
+    status = "B2BBackupStatus"
 )]
 pub struct B2BBackupSpec {
     pub postgres: PostgresConfig,
@@ -55,7 +56,15 @@ pub struct B2BBackupSpec {
     pub schedule: String,
 }
 
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct B2BBackupStatus {
+    pub cronjob_last_successful_time: Option<Time>,
+    pub test_pod_last_schedule_time: Option<Time>,
+    pub test_pod_last_successful_time: Option<Time>,
+}
+
 const BACKUP_IMAGE_NAME: &str = "ghcr.io/mmoreiradj/back2back-postgres-backup:latest";
+const POSTGRES_IMAGE_NAME: &str = "postgres:latest";
 
 impl B2BBackup {
     pub fn build_owner_reference(&self) -> OwnerReference {
@@ -185,6 +194,49 @@ impl B2BBackup {
             }),
             ..Default::default()
         }
+    }
+
+    /// Creates a test postgres pod to test the backup against
+    pub fn create_test_postgres_pod(&self) -> Pod {
+        let env = vec![
+            EnvVar {
+                name: "POSTGRES_PASSWORD".to_string(),
+                value: Some("password".to_string()),
+                ..Default::default()
+            },
+            EnvVar {
+                name: "POSTGRES_USER".to_string(),
+                value: Some("postgres".to_string()),
+                ..Default::default()
+            },
+        ];
+
+        Pod {
+            metadata: ObjectMeta {
+                name: Some(format!("{}-{}", self.name_any(), "pgtest")),
+                namespace: Some(self.namespace().unwrap_or("default".to_string())),
+                owner_references: Some(vec![self.build_owner_reference()]),
+                labels: Some(self.default_labels()),
+                ..Default::default()
+            },
+            spec: Some(PodSpec {
+                containers: vec![Container {
+                    env: Some(env),
+                    image: Some(POSTGRES_IMAGE_NAME.to_string()),
+                    image_pull_policy: Some("IfNotPresent".to_string()),
+                    name: format!("{}-pgtest", self.name_any()),
+                    ..Default::default()
+                }],
+                restart_policy: Some("OnFailure".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    /// Creates a test job to test the backup against
+    pub fn create_test_job() -> Job {
+        Job::default()
     }
 }
 

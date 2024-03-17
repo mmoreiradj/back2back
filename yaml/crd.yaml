@@ -71,10 +71,30 @@ spec:
             - s3
             - schedule
             type: object
+          status:
+            nullable: true
+            properties:
+              cronjob_last_successful_time:
+                description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                format: date-time
+                nullable: true
+                type: string
+              test_pod_last_schedule_time:
+                description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                format: date-time
+                nullable: true
+                type: string
+              test_pod_last_successful_time:
+                description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                format: date-time
+                nullable: true
+                type: string
+            type: object
         required:
         - spec
         title: B2BBackup
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}
